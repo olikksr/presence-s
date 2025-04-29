@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "Presence",
+    "slug": "presence",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/presence-icon.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Presence needs access to your location to track check-ins and attendance accurately."
+      }
+    },
+    "android": {
+      "package": "com.peppypick.presence",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/presence-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/presence-icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/presence-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      "expo-font",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "1897d0b8-fdb7-4b61-9ef7-bae5c9525f30"
+      }
+    }
+  }
+}
