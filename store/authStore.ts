@@ -1,11 +1,12 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
 
 interface User {
   id: string;
   name: string;
   email: string;
-  companyId: string; // ✅ companyId included
+  companyId: string;
 }
 
 interface AuthState {
@@ -15,90 +16,88 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-function isWeb() {
-  return typeof window !== 'undefined';
-}
+const isWeb = typeof window !== 'undefined';
 
-async function storeUser(user: User) {
-  const userString = JSON.stringify(user);
-  if (isWeb()) {
-    console.log('Storing user in local storage for web.');
-    localStorage.setItem('user', userString);
-  } else {
-    console.log('Storing user in secure store for iOS/Android.');
-    await SecureStore.setItemAsync('user', userString);
-  }
-}
+// Custom storage engine based on platform
+const zustandStorage = {
+  getItem: async (key: string): Promise<string | null> => {
+    if (isWeb) {
+      return Promise.resolve(localStorage.getItem(key));
+    } else {
+      return await SecureStore.getItemAsync(key);
+    }
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    if (isWeb) {
+      localStorage.setItem(key, value);
+    } else {
+      await SecureStore.setItemAsync(key, value);
+    }
+  },
+  removeItem: async (key: string): Promise<void> => {
+    if (isWeb) {
+      localStorage.removeItem(key);
+    } else {
+      await SecureStore.deleteItemAsync(key);
+    }
+  },
+};
 
-async function removeUser() {
-  if (isWeb()) {
-    console.log('Removing user from local storage for web.');
-    localStorage.removeItem('user');
-  } else {
-    console.log('Removing user from secure store for iOS/Android.');
-    await SecureStore.deleteItemAsync('user');
-  }
-}
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      isAuthenticated: false,
+      user: null,
 
-export const useAuthStore = create<AuthState>((set) => ({
-  isAuthenticated: false,
-  user: null,
+      login: async (email, password, companyId) => {
+        console.log('Attempting to log in...');
+        try {
+          const response = await fetch('http://localhost:5002/api/employee/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, companyId }),
+          });
 
-  login: async (email, password, companyId) => {
-    console.log('Attempting to log in...');
-    try {
-      const response = await fetch('http://localhost:5002/api/employee/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+          if (response.status !== 200) {
+            console.error('Login failed with status:', response.status);
+            return false;
+          }
+
+          const { data } = await response.json();
+          console.log('Login successful, received user data:', data);
+
+          const user: User = {
+            id: data.id,
+            name: data.name,
+            email: data.email,
+            companyId: data.companyId,
+          };
+
+          set({ user, isAuthenticated: true });
+          return true;
+        } catch (err) {
+          console.error('Login error:', err);
+          return false;
+        }
+      },
+
+      logout: async () => {
+        console.log('Logging out user...');
+        set({ isAuthenticated: false, user: null });
+      },
+    }),
+    {
+      name: 'auth-store',
+      storage: {
+        getItem: async (key: string) => {
+          const value = await zustandStorage.getItem(key);
+          return value ? JSON.parse(value) : null;
         },
-        body: JSON.stringify({ email, password, companyId }),
-      });
-  
-      if (response.status !== 200) {
-        console.error('Login failed with status:', response.status);
-        throw new Error('Login failed');
-      }
-  
-      const { data } = await response.json();
-      console.log('Login successful, received user data:', data);
-  
-      const user: User = {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        companyId: data.companyId,
-      };
-  
-      // ✅ Store the user
-      await storeUser(user);
-  
-      set({
-        isAuthenticated: true,
-        user,
-      });
-      console.log('User state updated to authenticated.');
-  
-      return true;
-    } catch (error) {
-      console.error('Login error:', error);
-      return false;
+        setItem: async (key: string, value: any) => {
+          await zustandStorage.setItem(key, JSON.stringify(value));
+        },
+        removeItem: zustandStorage.removeItem,
+      },
     }
-  },
-
-  logout: async () => {
-    console.log('Logging out user...');
-    try {
-      await removeUser();
-      console.log('User data removed from storage.');
-
-      set({
-        isAuthenticated: false,
-        user: null,
-      });
-      console.log('User state updated to unauthenticated.');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  },
-}));
+  )
+);

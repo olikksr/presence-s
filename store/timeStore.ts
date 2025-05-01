@@ -15,22 +15,28 @@ interface TimeState {
   checkStatus: () => Promise<void>;
   punchIn: () => Promise<void>;
   punchOut: () => Promise<void>;
+  fetchHistory: () => Promise<void>;
 }
 
 function isWeb() {
   return typeof window !== 'undefined';
 }
 
-async function getCompanyId() {
+async function getUserFromStorage() {
   if (isWeb()) {
-    const user = localStorage.getItem('user');
-    console.log('Retrieved user from local storage:', user);
-    return user ? JSON.parse(user).companyId : null;
+    const userString = localStorage.getItem('user');
+    console.log('Retrieved user from local storage:', userString);
+    return userString ? JSON.parse(userString) : null;
   } else {
-    const user = await SecureStore.getItemAsync('user');
-    console.log('Retrieved user from secure store:', user);
-    return user ? JSON.parse(user).companyId : null;
+    const userString = await SecureStore.getItemAsync('user');
+    console.log('Retrieved user from secure store:', userString);
+    return userString ? JSON.parse(userString) : null;
   }
+}
+
+async function getCompanyId() {
+  const user = await getUserFromStorage();
+  return user ? user.companyId : null;
 }
 
 export async function getCurrentPosition() {
@@ -45,12 +51,56 @@ export async function getCurrentPosition() {
   return location;
 }
 
+export async function getAttendanceHistory() {
+  try {
+    const user = useAuthStore.getState().user || await getUserFromStorage();
+    console.log('Fetching history for user:', user);
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    const response = await fetch(`http://localhost:5003/api/attendance/history?employee_id=${user.id}`);
+    console.log('Attendance history response:', response);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch attendance history');
+    }
+    
+    const data = await response.json();
+    console.log('Attendance history data:', data);
+    
+    // Check if data has the expected structure
+    if (!data || !data.history) {
+      console.log('Unexpected data structure:', data);
+      // Return the data as is if it doesn't have the expected structure
+      return data;
+    }
+    
+    // Transform the data to match our TimeEntry format
+    const formattedHistory = data.history.map((entry: any) => ({
+      id: entry.id || String(entry.timestamp) || Date.now().toString(),
+      punchIn: new Date(entry.clock_in_time),
+      punchOut: entry.clock_out_time ? new Date(entry.clock_out_time) : null,
+    }));
+    
+    console.log('Formatted history:', formattedHistory);
+    return formattedHistory;
+  } catch (error) {
+    console.error('Error fetching attendance history:', error);
+    if (error instanceof Error) {
+      throw new Error(error.message);
+    }
+    throw new Error('Failed to fetch attendance history');
+  }
+}
+
 export const useTimeStore = create<TimeState>((set) => ({
   currentSession: null,
   history: [],
   checkStatus: async () => {
     try {
-      const user = useAuthStore.getState().user;
+      const user = useAuthStore.getState().user || await getUserFromStorage();
       console.log('Current user:', user);
       
       if (!user) {
@@ -84,10 +134,23 @@ export const useTimeStore = create<TimeState>((set) => ({
       throw new Error('Failed to check status');
     }
   },
+  fetchHistory: async () => {
+    try {
+      const historyData = await getAttendanceHistory();
+      set({ history: historyData });
+      console.log('History fetched and set successfully');
+    } catch (error) {
+      console.error('Error fetching history:', error);
+      if (error instanceof Error) {
+        throw new Error(error.message);
+      }
+      throw new Error('Failed to fetch history');
+    }
+  },
   punchIn: async () => {
     try {
       const position = await getCurrentPosition();
-      const user = useAuthStore.getState().user;
+      const user = useAuthStore.getState().user || await getUserFromStorage();
       const companyId = await getCompanyId();
       console.log('Punch in position:', position);
       console.log('Punch in user:', user);
@@ -136,10 +199,13 @@ export const useTimeStore = create<TimeState>((set) => ({
       throw new Error('Failed to punch in');
     }
   },
+  
+
+
   punchOut: async () => {
     try {
       const position = await getCurrentPosition();
-      const user = useAuthStore.getState().user;
+      const user = useAuthStore.getState().user || await getUserFromStorage();
       const companyId = await getCompanyId();
       console.log('Punch out position:', position);
       console.log('Punch out user:', user);
