@@ -60,7 +60,7 @@ export async function getAttendanceHistory() {
       throw new Error('User not authenticated');
     }
 
-    const response = await fetch(`http://localhost:5003/api/attendance/history?employee_id=${user.id}`);
+    const response = await fetch(`https://api.peppypresence.com:5003/api/attendance/history?employee_id=${user.id}`);
     console.log('Attendance history response:', response);
     
     if (!response.ok) {
@@ -107,7 +107,7 @@ export const useTimeStore = create<TimeState>((set) => ({
         throw new Error('User not authenticated');
       }
 
-      const response = await fetch(`http://localhost:5003/api/attendance/status?employee_id=${user.id}`);
+      const response = await fetch(`https://api.peppypresence.com:5003/api/attendance/status?employee_id=${user.id}`);
       console.log('Attendance status response:', response);
       const data = await response.json();
       console.log('Attendance status data:', data);
@@ -160,7 +160,7 @@ export const useTimeStore = create<TimeState>((set) => ({
         throw new Error('User not authenticated');
       }
 
-      const response = await fetch('http://localhost:5003/api/attendance', {
+      const response = await fetch('https://api.peppypresence.com:5003/api/attendance', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -215,7 +215,7 @@ export const useTimeStore = create<TimeState>((set) => ({
         throw new Error('User not authenticated');
       }
 
-      const response = await fetch('http://localhost:5003/api/attendance', {
+      const response = await fetch('https://api.peppypresence.com:5003/api/attendance', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
